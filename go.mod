@@ -1,4 +1,4 @@
-module github.com/lhdhtrc/logger-go
+module github.com/fireflycore/go-logger
 
 go 1.25.1
 
