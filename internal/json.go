@@ -1,9 +1,9 @@
 package internal
 
 import (
+	"io"
 	"time"
 
-	"github.com/fireflycore/go-logger/core"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -15,7 +15,7 @@ import (
 // - 将日志写入异步队列（config 可实现为 AsyncLogger）
 //
 // 注意：本 core 仅负责 JSON 编码与写入，不做采样/过滤等策略。
-func NewJsonCore(config core.LoggerConfig) zapcore.Core {
+func NewJsonCore(config io.Writer) zapcore.Core {
 	// 采用 ProductionEncoderConfig，输出字段更稳定，适合机器解析。
 	encoderConfig := zap.NewProductionEncoderConfig()
 	// 时间字段写入 created_at，保持与本库 Conf.Write 的解析字段一致。
