@@ -2,6 +2,7 @@ package logger
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/fireflycore/go-logger/internal"
 	"go.uber.org/zap"
@@ -12,8 +13,9 @@ import (
 // - Console：是否启用控制台输出
 // - Remote：是否启用远端输出（需要同时提供 handle 才会生效）
 type Conf struct {
-	Console bool `json:"console"`
-	Remote  bool `json:"remote"`
+	Console bool   `json:"console"`
+	Remote  bool   `json:"remote"`
+	Level   string `json:"level"`
 
 	handle func(b []byte)
 }
@@ -72,19 +74,31 @@ func New(conf *Conf, handle func(b []byte)) *zap.Logger {
 	if conf == nil {
 		return zap.NewNop()
 	}
-	// handle 通过参数注入，便于一次性构造。
-	if handle != nil {
+
+	if conf.handle != nil {
 		conf.handle = handle
 	}
+
+	// 默认等级为 info；如果 conf.Level 可解析则覆盖。
+	level := zapcore.InfoLevel
+	if strings.TrimSpace(conf.Level) != "" {
+		// ParseLevel 支持 debug/info/warn/error/dpanic/panic/fatal。
+		if parsed, err := zapcore.ParseLevel(strings.TrimSpace(conf.Level)); err == nil {
+			level = parsed
+		}
+	}
+	// atomicLevel 作为 LevelEnabler 传递给各 core，使多个输出目的地共享同一等级门槛。
+	atomicLevel := zap.NewAtomicLevelAt(level)
 
 	// 多个 core 通过 Tee 合并，保证同一条日志可同时输出到多个目的地。
 	cores := make([]zapcore.Core, 0, 2)
 	if conf.Console {
-		cores = append(cores, internal.NewConsoleCore())
+		cores = append(cores, internal.NewConsoleCore(atomicLevel))
 	}
 	// Remote 需要 conf.handle，否则无法写入，避免产生“启用但无输出”的隐式失败。
 	if conf.Remote && conf.handle != nil {
-		cores = append(cores, internal.NewJsonCore(conf))
+		// Remote 走自定义 core：避免 JSON 编码后再解析/重组的额外开销。
+		cores = append(cores, internal.NewRemoteCore(atomicLevel, handle))
 	}
 
 	// 没有任何输出目的地时返回 nop，避免 NewTee 空参数造成不可预期行为。

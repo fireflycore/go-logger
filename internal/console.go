@@ -14,7 +14,8 @@ import (
 // - 采用 ProductionEncoderConfig，字段与 zap 默认生产格式保持一致
 // - 通过自定义 EncodeTime/EncodeLevel/EncodeCaller，把输出变成更利于人读的形式
 // - 返回的 Core 可与 JSON Core 通过 zapcore.NewTee 合并
-func NewConsoleCore() zapcore.Core {
+func NewConsoleCore(level zapcore.LevelEnabler) zapcore.Core {
+	// level 由上层统一构造并传入，确保 Console 与 Remote 共享同一套等级控制逻辑。
 	// encoderConfig 决定日志的字段名与编码方式（时间、等级、caller 等）。
 	encoderConfig := zap.NewProductionEncoderConfig()
 	// ConsoleSeparator 控制 console encoder 的分隔符。
@@ -37,8 +38,8 @@ func NewConsoleCore() zapcore.Core {
 
 	// console encoder 面向人读，适合本地调试与开发环境。
 	enc := zapcore.NewConsoleEncoder(encoderConfig)
-	// 输出目标选择 stdout，并用 AtomicLevel 作为可扩展的等级控制。
-	core := zapcore.NewCore(enc, zapcore.AddSync(os.Stdout), zap.NewAtomicLevel())
+	// 输出目标选择 stdout，并用外部传入的 LevelEnabler 作为等级控制。
+	core := zapcore.NewCore(enc, zapcore.AddSync(os.Stdout), level)
 
 	return core
 }
