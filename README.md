@@ -18,7 +18,7 @@ go get github.com/fireflycore/go-logger
 ```go
 package main
 
-import "github.com/fireflycore/go-logger"
+import logger "github.com/fireflycore/go-logger"
 
 func main() {
 	l := logger.New(&logger.Conf{
@@ -37,7 +37,7 @@ func main() {
 ```go
 package main
 
-import "github.com/fireflycore/go-logger"
+import logger "github.com/fireflycore/go-logger"
 
 func main() {
 	l := logger.New(&logger.Conf{
@@ -58,7 +58,7 @@ func main() {
 ```go
 package main
 
-import "github.com/fireflycore/go-logger"
+import logger "github.com/fireflycore/go-logger"
 
 func main() {
 	async := logger.NewAsyncLogger(1024, func(b []byte) {
@@ -80,3 +80,18 @@ Conf 支持三个字段：
 - Console：是否输出到 stdout（控制台 encoder）
 - Remote：是否输出到回调（JSON encoder；需要同时提供 handle 才生效）
 - Level：日志等级（debug/info/warn/error/panic；默认 info）
+
+## 回调输出格式
+
+当 Remote=true 且提供 handle 时，handle 会收到一段 JSON bytes，字段如下：
+- Path：调用位置（file:line）
+- Level：数字等级（兼容历史格式）
+- Content：日志消息
+- TraceId：可选字段（当日志 fields 中包含 trace_id 或 TraceId 时输出）
+- CreatedAt：时间（time.DateTime 格式）
+
+其中 TraceId 的常见写法：
+
+```go
+l.Info("hello", zap.String("trace_id", "xxx"))
+```
