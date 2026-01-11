@@ -76,6 +76,7 @@ func main() {
 
 ## 配置说明
 
-Conf 支持两个开关：
+Conf 支持三个字段：
 - Console：是否输出到 stdout（控制台 encoder）
 - Remote：是否输出到回调（JSON encoder；需要同时提供 handle 才生效）
+- Level：日志等级（debug/info/warn/error/panic；默认 info）
