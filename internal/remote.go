@@ -15,7 +15,7 @@ type remoteLog struct {
 	// Content 是日志消息内容（对应 zap 的 entry.Message）。
 	Content string `json:"Content"`
 	// TraceId 可选字段：从 fields 中提取 trace_id/TraceId。
-	TraceId string `json:"TraceId"`
+	TraceId string `json:"TraceId,omitempty"`
 	// CreatedAt 是日志时间，使用可读的 time.DateTime 格式。
 	CreatedAt string `json:"CreatedAt"`
 }

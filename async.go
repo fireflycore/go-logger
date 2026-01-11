@@ -90,6 +90,11 @@ func (l *AsyncLogger) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+func (l *AsyncLogger) Logger(b []byte) {
+	// 兼容历史用法：允许将 async.Logger 作为回调函数传给 New。
+	_, _ = l.Write(b)
+}
+
 func (l *AsyncLogger) Close() {
 	// Close 为可选调用：允许 nil 接收者。
 	if l == nil {

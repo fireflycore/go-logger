@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"encoding/json"
 	"strings"
 
 	"github.com/fireflycore/go-logger/internal"
@@ -22,46 +21,9 @@ type Conf struct {
 
 // WithHandle 设置远端输出回调。
 //
-// handle 会接收到经过本库二次整理的 JSON 字节串（outputLog 格式）。
+// handle 会接收到 JSON bytes（字段见 README）。
 func (c *Conf) WithHandle(handle func(b []byte)) {
 	c.handle = handle
-}
-
-// Write 实现 io.Writer，用于把 zap 的 JSON 输出重定向到 handle。
-//
-// 这里不返回错误：日志写入失败不应影响业务逻辑（保持可用性优先）。
-func (c *Conf) Write(b []byte) (int, error) {
-	// 未开启远端回调时直接忽略写入（依然返回成功长度，避免上游误判）。
-	if c == nil || c.handle == nil {
-		return len(b), nil
-	}
-
-	// 解析 zap JSON 输出，提取必要字段并做字段名/等级转换。
-	var data zapLog
-	if err := json.Unmarshal(b, &data); err != nil {
-		// 如果解析失败，直接透传原始字节，尽可能不丢日志。
-		c.handle(b)
-		return len(b), nil
-	}
-
-	// 组装为兼容下游的输出结构。
-	out, err := json.Marshal(&outputLog{
-		Path:      data.Path,
-		Level:     levelToInt(data.Level),
-		Content:   data.Message,
-		TraceId:   data.TraceId,
-		CreatedAt: data.CreatedAt,
-	})
-	if err != nil {
-		// 序列化失败同样透传原始字节，避免完全丢失。
-		c.handle(b)
-		return len(b), nil
-	}
-
-	// 将结构化日志交给调用方处理（例如写入远端）。
-	c.handle(out)
-
-	return len(b), nil
 }
 
 // New 构造一个 zap.Logger。
@@ -75,13 +37,18 @@ func New(conf *Conf, handle func(b []byte)) *zap.Logger {
 		return zap.NewNop()
 	}
 
-	if conf.handle != nil {
-		conf.handle = handle
+	// effectiveHandle 用于统一 handle 的来源：入参优先，其次使用 conf.handle。
+	effectiveHandle := handle
+	if effectiveHandle == nil {
+		effectiveHandle = conf.handle
 	}
+	// 统一将最终 handle 落到 conf 上，便于后续复用（例如外部读取配置对象的 handle）。
+	conf.handle = effectiveHandle
 
 	// 默认等级为 info；如果 conf.Level 可解析则覆盖。
 	level := zapcore.InfoLevel
 	if strings.TrimSpace(conf.Level) != "" {
+		// TrimSpace 防止 " info " 这类配置导致解析失败。
 		// ParseLevel 支持 debug/info/warn/error/dpanic/panic/fatal。
 		if parsed, err := zapcore.ParseLevel(strings.TrimSpace(conf.Level)); err == nil {
 			level = parsed
@@ -93,12 +60,13 @@ func New(conf *Conf, handle func(b []byte)) *zap.Logger {
 	// 多个 core 通过 Tee 合并，保证同一条日志可同时输出到多个目的地。
 	cores := make([]zapcore.Core, 0, 2)
 	if conf.Console {
+		// Console 与 Remote 共用同一 LevelEnabler，避免两个输出目的地等级不一致。
 		cores = append(cores, internal.NewConsoleCore(atomicLevel))
 	}
 	// Remote 需要 conf.handle，否则无法写入，避免产生“启用但无输出”的隐式失败。
-	if conf.Remote && conf.handle != nil {
+	if conf.Remote && effectiveHandle != nil {
 		// Remote 走自定义 core：避免 JSON 编码后再解析/重组的额外开销。
-		cores = append(cores, internal.NewRemoteCore(atomicLevel, handle))
+		cores = append(cores, internal.NewRemoteCore(atomicLevel, effectiveHandle))
 	}
 
 	// 没有任何输出目的地时返回 nop，避免 NewTee 空参数造成不可预期行为。
