@@ -117,13 +117,9 @@ func levelToInt(level zapcore.Level) int {
 	case zapcore.InfoLevel:
 		return 1
 	case zapcore.WarnLevel:
-		return 3
+		return 2
 	case zapcore.ErrorLevel:
-		return 4
-	case zapcore.PanicLevel:
-		return 5
-	case zapcore.DebugLevel:
-		return 6
+		return 3
 	default:
 		return 0
 	}
