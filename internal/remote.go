@@ -91,11 +91,26 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 		path = entry.Caller.TrimmedPath()
 	}
 
+	// 提取结构化字段并追加到 Content
+	content := entry.Message
+	if len(allFields) > 0 {
+		enc := zapcore.NewMapObjectEncoder()
+		for _, f := range allFields {
+			f.AddTo(enc)
+		}
+		// 如果有字段，序列化为 JSON 并追加到 content
+		if len(enc.Fields) > 0 {
+			if b, err := json.Marshal(enc.Fields); err == nil {
+				content = content + " " + string(b)
+			}
+		}
+	}
+
 	// 将 entry 映射到下游期待的字段结构，避免先 JSON 编码再反序列化的额外开销。
 	b, err := json.Marshal(&remoteLog{
 		Path:      path,
 		Level:     levelToInt(entry.Level),
-		Content:   entry.Message,
+		Content:   content,
 		TraceId:   traceId,
 		CreatedAt: entry.Time.Format(time.DateTime),
 	})
