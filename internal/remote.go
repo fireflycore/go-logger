@@ -2,22 +2,19 @@ package internal
 
 import (
 	"encoding/json"
-	"time"
 
 	"go.uber.org/zap/zapcore"
 )
 
 type ServerLogger struct {
 	// Path 是触发日志的调用位置（trim 后的 file:line）。
-	Path string `json:"Path"`
+	Path string `json:"path"`
 	// Level 是数字等级，保持与历史下游解析兼容。
-	Level uint32 `json:"Level"`
+	Level uint32 `json:"level"`
 	// Content 是日志消息内容（对应 zap 的 entry.Message）。
-	Content string `json:"Content"`
+	Content string `json:"content"`
 	// TraceId 可选字段：从 fields 中提取 trace_id/TraceId。
-	TraceId   string `json:"TraceId,omitempty"`
-	CreatedAt string `json:"CreatedAt"`
-	UpdatedAt string `json:"UpdateAt"`
+	TraceId string `json:"trace_id"`
 }
 
 type remoteCore struct {
@@ -108,11 +105,10 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 
 	// 将 entry 映射到下游期待的字段结构，避免先 JSON 编码再反序列化的额外开销。
 	b, err := json.Marshal(&ServerLogger{
-		Path:      path,
-		Level:     levelToInt(entry.Level),
-		Content:   content,
-		TraceId:   traceId,
-		CreatedAt: entry.Time.Format(time.DateTime),
+		Path:    path,
+		Level:   levelToInt(entry.Level),
+		Content: content,
+		TraceId: traceId,
 	})
 	// JSON 序列化失败时丢弃该条日志（不返回错误，保持日志不影响业务）。
 	if err == nil {
