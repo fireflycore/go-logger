@@ -6,15 +6,13 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// ServerLogger 表示服务端日志。
 type ServerLogger struct {
-	// Path 是触发日志的调用位置（trim 后的 file:line）。
-	Path string `json:"path"`
-	// Level 是数字等级，保持与历史下游解析兼容。
-	Level uint32 `json:"level"`
-	// Content 是日志消息内容（对应 zap 的 entry.Message）。
+	Path    string `json:"path"`
+	Level   uint32 `json:"level"`
 	Content string `json:"content"`
-	// TraceId 可选字段：从 fields 中提取 trace_id/TraceId。
 	TraceId string `json:"trace_id"`
+	UserId  string `json:"user_id"`
 }
 
 type remoteCore struct {
@@ -75,9 +73,14 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 
 	// traceId 从 fields 中提取，优先匹配标准 snake_case（trace_id），兼容历史的 TraceId。
 	traceId := ""
+	userId := ""
 	for _, f := range allFields {
 		if (f.Key == "trace_id" || f.Key == "TraceId") && f.Type == zapcore.StringType {
 			traceId = f.String
+			break
+		}
+		if (f.Key == "user_id" || f.Key == "UserId") && f.Type == zapcore.StringType {
+			userId = f.String
 			break
 		}
 	}
@@ -106,9 +109,10 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	// 将 entry 映射到下游期待的字段结构，避免先 JSON 编码再反序列化的额外开销。
 	b, err := json.Marshal(&ServerLogger{
 		Path:    path,
-		Level:   levelToInt(entry.Level),
+		Level:   levelConvertValue(entry.Level),
 		Content: content,
 		TraceId: traceId,
+		UserId:  userId,
 	})
 	// JSON 序列化失败时丢弃该条日志（不返回错误，保持日志不影响业务）。
 	if err == nil {
@@ -122,7 +126,7 @@ func (c *remoteCore) Sync() error {
 	return nil
 }
 
-func levelToInt(level zapcore.Level) uint32 {
+func levelConvertValue(level zapcore.Level) uint32 {
 	// 该映射保持与旧版本一致：下游存储/检索可能依赖数字等级。
 	switch level {
 	case zapcore.InfoLevel:
