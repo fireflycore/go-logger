@@ -11,8 +11,12 @@ type ServerLogger struct {
 	Path    string `json:"path"`
 	Level   uint32 `json:"level"`
 	Content string `json:"content"`
-	TraceId string `json:"trace_id"`
-	UserId  string `json:"user_id"`
+
+	TraceId  string `json:"trace_id"`
+	ParentId string `json:"parent_id"`
+	SpanId   string `json:"span_id"`
+
+	UserId string `json:"user_id"`
 }
 
 type remoteCore struct {
@@ -72,8 +76,7 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	}
 
 	// traceId 从 fields 中提取，优先匹配标准 snake_case（trace_id），兼容历史的 TraceId。
-	traceId := ""
-	userId := ""
+	var traceId, parentId, spanId, userId string
 	for _, f := range allFields {
 		if (f.Key == "trace_id" || f.Key == "TraceId") && f.Type == zapcore.StringType {
 			traceId = f.String
@@ -81,6 +84,14 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 		}
 		if (f.Key == "user_id" || f.Key == "UserId") && f.Type == zapcore.StringType {
 			userId = f.String
+			break
+		}
+		if (f.Key == "parent_id" || f.Key == "ParentId") && f.Type == zapcore.StringType {
+			parentId = f.String
+			break
+		}
+		if (f.Key == "span_id" || f.Key == "SpanId") && f.Type == zapcore.StringType {
+			spanId = f.String
 			break
 		}
 	}
@@ -108,11 +119,13 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 
 	// 将 entry 映射到下游期待的字段结构，避免先 JSON 编码再反序列化的额外开销。
 	b, err := json.Marshal(&ServerLogger{
-		Path:    path,
-		Level:   levelConvertValue(entry.Level),
-		Content: content,
-		TraceId: traceId,
-		UserId:  userId,
+		Path:     path,
+		Level:    levelConvertValue(entry.Level),
+		Content:  content,
+		TraceId:  traceId,
+		ParentId: parentId,
+		SpanId:   spanId,
+		UserId:   userId,
 	})
 	// JSON 序列化失败时丢弃该条日志（不返回错误，保持日志不影响业务）。
 	if err == nil {
