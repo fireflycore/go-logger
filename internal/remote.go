@@ -14,7 +14,6 @@ type ServerLogger struct {
 
 	TraceId  string `json:"trace_id"`
 	ParentId string `json:"parent_id"`
-	SpanId   string `json:"span_id"`
 
 	UserId string `json:"user_id"`
 }
@@ -76,7 +75,7 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	}
 
 	// traceId 从 fields 中提取，优先匹配标准 snake_case（trace_id），兼容历史的 TraceId。
-	var traceId, parentId, spanId, userId string
+	var traceId, parentId, userId string
 	for _, f := range allFields {
 		if (f.Key == "trace_id" || f.Key == "TraceId") && f.Type == zapcore.StringType {
 			traceId = f.String
@@ -88,10 +87,6 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 		}
 		if (f.Key == "parent_id" || f.Key == "ParentId") && f.Type == zapcore.StringType {
 			parentId = f.String
-			break
-		}
-		if (f.Key == "span_id" || f.Key == "SpanId") && f.Type == zapcore.StringType {
-			spanId = f.String
 			break
 		}
 	}
@@ -124,7 +119,6 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 		Content:  content,
 		TraceId:  traceId,
 		ParentId: parentId,
-		SpanId:   spanId,
 		UserId:   userId,
 	})
 	// JSON 序列化失败时丢弃该条日志（不返回错误，保持日志不影响业务）。
