@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"strings"
 
 	"go.uber.org/zap/zapcore"
 )
@@ -63,70 +64,59 @@ func (c *remoteCore) Check(entry zapcore.Entry, ce *zapcore.CheckedEntry) *zapco
 }
 
 func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
-	// handle 未设置时直接忽略写入，避免影响业务。
 	if c.handle == nil {
 		return nil
 	}
 
-	// allFields 合并 With(...) 挂载的字段与本次日志携带字段，便于统一提取 trace_id。
-	allFields := fields
-	if len(c.fields) != 0 {
-		allFields = append(append([]zapcore.Field(nil), c.fields...), fields...)
-	}
+	// 预分配切片，避免多次扩容
+	allFields := make([]zapcore.Field, 0, len(c.fields)+len(fields))
+	allFields = append(allFields, c.fields...)
+	allFields = append(allFields, fields...)
 
-	// traceId 从 fields 中提取，优先匹配标准 snake_case（trace_id），兼容历史的 TraceId。
 	var traceId, parentId, userId string
 	found := 0
 
+	enc := zapcore.NewMapObjectEncoder()
 	for _, f := range allFields {
-		if (f.Key == "trace_id" || f.Key == "TraceId") && f.Type == zapcore.StringType && traceId == "" {
-			traceId = f.String
-			found++
-		}
-		if (f.Key == "user_id" || f.Key == "UserId") && f.Type == zapcore.StringType && userId == "" {
-			userId = f.String
-			found++
-		}
-		if (f.Key == "parent_id" || f.Key == "ParentId") && f.Type == zapcore.StringType && parentId == "" {
-			parentId = f.String
-			found++
-		}
-		if found == 3 {
-			break
-		}
-	}
+		// 先构建字段映射，确保所有字段都被序列化
+		f.AddTo(enc)
 
-	// path 优先使用 zap 提供的 Caller（需要上层 zap.AddCaller()）。
-	path := ""
-	if entry.Caller.Defined {
-		path = entry.Caller.TrimmedPath()
-	}
-
-	// 提取结构化字段并追加到 Content
-	content := entry.Message
-	if len(allFields) > 0 {
-		enc := zapcore.NewMapObjectEncoder()
-		for _, f := range allFields {
-			f.AddTo(enc)
-		}
-		// 如果有字段，序列化为 JSON 并追加到 content
-		if len(enc.Fields) > 0 {
-			if b, err := json.Marshal(enc.Fields); err == nil {
-				content = content + " " + string(b)
+		// 提取关注的字段（仅在尚未找到时检查）
+		if found < 3 {
+			switch {
+			case (f.Key == "trace_id" || f.Key == "TraceId") && f.Type == zapcore.StringType && traceId == "":
+				traceId = f.String
+				found++
+			case (f.Key == "user_id" || f.Key == "UserId") && f.Type == zapcore.StringType && userId == "":
+				userId = f.String
+				found++
+			case (f.Key == "parent_id" || f.Key == "ParentId") && f.Type == zapcore.StringType && parentId == "":
+				parentId = f.String
+				found++
 			}
 		}
 	}
 
-	// 将 entry 映射到下游期待的字段结构，避免先 JSON 编码再反序列化的额外开销。
+	// 构建 content
+	var contentBuilder strings.Builder
+	contentBuilder.WriteString(entry.Message)
+	if len(enc.Fields) > 0 {
+		if b, err := json.Marshal(enc.Fields); err == nil {
+			contentBuilder.WriteByte(' ')
+			contentBuilder.Write(b)
+		}
+	}
+	content := contentBuilder.String()
+
+	// 序列化最终日志
 	b, err := json.Marshal(&ServerLogger{
-		Path:     path,
+		Path:     entry.Caller.TrimmedPath(), // TrimmedPath 内部已处理未定义情况
 		Level:    levelConvertValue(entry.Level),
 		Content:  content,
 		TraceId:  traceId,
 		ParentId: parentId,
 		UserId:   userId,
 	})
-	// JSON 序列化失败时丢弃该条日志（不返回错误，保持日志不影响业务）。
 	if err == nil {
 		c.handle(b)
 	}
