@@ -76,17 +76,22 @@ func (c *remoteCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 
 	// traceId 从 fields 中提取，优先匹配标准 snake_case（trace_id），兼容历史的 TraceId。
 	var traceId, parentId, userId string
+	found := 0
+
 	for _, f := range allFields {
-		if (f.Key == "trace_id" || f.Key == "TraceId") && f.Type == zapcore.StringType {
+		if (f.Key == "trace_id" || f.Key == "TraceId") && f.Type == zapcore.StringType && traceId == "" {
 			traceId = f.String
-			break
+			found++
 		}
-		if (f.Key == "user_id" || f.Key == "UserId") && f.Type == zapcore.StringType {
+		if (f.Key == "user_id" || f.Key == "UserId") && f.Type == zapcore.StringType && userId == "" {
 			userId = f.String
-			break
+			found++
 		}
-		if (f.Key == "parent_id" || f.Key == "ParentId") && f.Type == zapcore.StringType {
+		if (f.Key == "parent_id" || f.Key == "ParentId") && f.Type == zapcore.StringType && parentId == "" {
 			parentId = f.String
+			found++
+		}
+		if found == 3 {
 			break
 		}
 	}
