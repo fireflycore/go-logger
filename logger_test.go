@@ -2,6 +2,7 @@ package logger
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"go.uber.org/zap"
@@ -103,17 +104,18 @@ func TestNew(t *testing.T) {
 				if err := json.Unmarshal(last, &m); err != nil {
 					t.Fatalf("expected json output, got error: %v", err)
 				}
-				if _, ok := m["Path"]; !ok {
-					t.Fatalf("expected Path field")
+				if _, ok := m["path"]; !ok {
+					t.Fatalf("expected path field")
 				}
-				if _, ok := m["Level"]; !ok {
-					t.Fatalf("expected Level field")
+				if _, ok := m["level"]; !ok {
+					t.Fatalf("expected level field")
 				}
-				if m["Content"] != "测试" {
-					t.Fatalf("expected Content to be 测试, got: %v", m["Content"])
+				content, ok := m["content"].(string)
+				if !ok || !strings.HasPrefix(content, "测试 ") || !strings.Contains(content, `"cancel":true`) {
+					t.Fatalf("unexpected content: %v", m["content"])
 				}
-				if _, ok := m["CreatedAt"]; !ok {
-					t.Fatalf("expected CreatedAt field")
+				if m["level"] != float64(1) {
+					t.Fatalf("unexpected level: %v", m["level"])
 				}
 			} else {
 				// 其他情况：不应触发 handle（例如只开 console、未开任何输出、未提供 handle 等）。

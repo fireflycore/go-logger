@@ -84,11 +84,10 @@ Conf 支持三个字段：
 ## 回调输出格式
 
 当 Remote=true 且提供 handle 时，handle 会收到一段 JSON bytes，字段如下：
-- Path：调用位置（file:line）
-- Level：数字等级（兼容历史格式）
-- Content：日志消息
-- TraceId：可选字段（当日志 fields 中包含 trace_id 或 TraceId 时输出）
-- CreatedAt：时间（time.DateTime 格式）
+- path：调用位置（file:line）
+- level：数字等级（兼容历史格式）
+- content：日志消息及附加字段 JSON
+- trace_id、parent_id、user_id：从日志 fields 中提取
 
 其中 TraceId 的常见写法：
 

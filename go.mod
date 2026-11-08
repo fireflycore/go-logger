@@ -1,8 +1,8 @@
 module github.com/fireflycore/go-logger
 
-go 1.25.1
+go 1.26.10
 
-require go.uber.org/zap v1.27.1
+require go.uber.org/zap v1.28.0
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
