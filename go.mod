@@ -1,6 +1,6 @@
 module github.com/fireflycore/go-logger
 
-go 1.26.10
+go 1.27.3
 
 require go.uber.org/zap v1.28.0
 
